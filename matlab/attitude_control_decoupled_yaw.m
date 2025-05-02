@@ -73,31 +73,31 @@ b3 = R * e3;
 kb = k.R;
 kw = k.W;
 
-w = W(1) * b1 + W(2) * b2;
-b3_dot = hat(w) * b3;
+w = W(1) * b1 + W(2) * b2;                      # (23)
+b3_dot = hat(w) * b3;                           # (22)
 
 wd = hat(b3d) * b3d_dot;
 wd_dot = hat(b3d) * b3d_ddot;
 
-eb = hat(b3d) * b3;
-ew = w + hat(b3)^2 * wd;
-tau = - kb * eb ...
+eb = hat(b3d) * b3;                             # (27)
+ew = w + hat(b3)^2 * wd;                        # (28)
+tau = - kb * eb ...                             # (31)
     - kw * ew ...
     - J(1,1) * dot(b3, wd) * b3_dot ...
     - J(1,1) * hat(b3)^2 * wd_dot ...
     - k.I * eI(1) * b1 - k.I * eI(2) * b2;
 
-tau1 = dot(b1, tau);
+tau1 = dot(b1, tau);             
 tau2 = dot(b2, tau);
 
-M1 = tau1 + J(3,3) * W(3) * W(2);
-M2 = tau2 - J(3,3) * W(3) * W(1);
+M1 = tau1 + J(3,3) * W(3) * W(2);               # (24)              
+M2 = tau2 - J(3,3) * W(3) * W(1);               # (24)
 
 %% Yaw dynamics
-ey = -dot(b2, b1c);
-ewy = W(3) - wc3;
+ey = -dot(b2, b1c);                             # (49)
+ewy = W(3) - wc3;                               # (50)
 
-M3 = - k.y * ey ...
+M3 = - k.y * ey ...                             # (52)
     - k.wy * ewy ...
     - k.yI * eI(3) ...
     + J(3,3) * wc3_dot;

@@ -48,7 +48,7 @@ function [f, M, ei_dot, eI_dot, error, calculated] ...
 %    calculated: (struct) calculated desired commands (for data logging)
 
 % Use this flag to enable or disable the decoupled-yaw attitude controller.
-use_decoupled = true;
+use_decoupled = false;
 
 % Unpack states
 [x, v, R, W, ei, eI] = split_to_states(X);
@@ -59,30 +59,30 @@ m = param.m;
 g = param.g;
 e3 = [0, 0, 1]';
 
-error.x = x - desired.x;
-error.v = v - desired.v;
-A = - k.x * error.x ...
+error.x = x - desired.x;                                                % (11)
+error.v = v - desired.v;                                                % (12)
+A = - k.x * error.x ...                                                 % (14)
     - k.v * error.v ...
     - m * g * e3 ...
     + m * desired.x_2dot ...
     - k.i * sat(sigma, ei);
 
-ei_dot = error.v + c1 * error.x;
+ei_dot = error.v + c1 * error.x;                                        % (13)
 b3 = R * e3;
 f = -dot(A, b3);
 ea = g * e3 ...
     - f / m * b3 ...
     - desired.x_2dot ...
     + param.x_delta / m;
-A_dot = - k.x * error.v ...
+A_dot = - k.x * error.v ...                                ,            % (14)
     - k.v * ea ...
     + m * desired.x_3dot ...
     - k.i * satdot(sigma, ei, ei_dot);
 
 ei_ddot = ea + c1 * error.v;
-b3_dot = R * hat(W) * e3;
+b3_dot = R * hat(W) * e3;                                               % (22)
 f_dot = -dot(A_dot, b3) - dot(A, b3_dot);
-eb = - f_dot / m * b3 - f / m * b3_dot - desired.x_3dot;
+eb = - f_dot / m * b3 - f / m * b3_dot - desired.x_3dot;                % (27)
 A_ddot = - k.x * ea ...
     - k.v * eb ...
     + m * desired.x_4dot ...
@@ -112,8 +112,7 @@ Wc = vee(Rc' * Rc_dot);
 Wc_dot = vee(Rc' * Rc_ddot - hat(Wc)^2);
 
 W3 = dot(R * e3, Rc * Wc);
-W3_dot = dot(R * e3, Rc * Wc_dot) ...
-    + dot(R * hat(W) * e3, Rc * Wc);
+W3_dot = dot(R * e3, Rc * Wc_dot) + dot(R * hat(W) * e3, Rc * Wc);
 
 %% Run attitude controller
 if use_decoupled
@@ -142,6 +141,5 @@ calculated.R = Rc;
 calculated.W = Wc;
 calculated.W_dot = Wc_dot;
 calculated.W3 = dot(R * e3, Rc * Wc);
-calculated.W3_dot = dot(R * e3, Rc * Wc_dot) ...
-    + dot(R * hat(W) * e3, Rc * Wc);
+calculated.W3_dot = dot(R * e3, Rc * Wc_dot) + dot(R * hat(W) * e3, Rc * Wc);
 end

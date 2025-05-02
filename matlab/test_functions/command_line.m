@@ -1,6 +1,6 @@
 function desired = command_line(t)
 
-height = 1;
+height = 0;
 
 desired.x = [0.5 * t, 0, -height]';
 desired.v = [0.5 * 1, 0, 0]';

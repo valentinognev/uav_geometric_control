@@ -10,8 +10,7 @@ desired = command(t);
 [f, M, ei_dot, eI_dot, ~, ~] = position_control(X, desired, k, param);
 
 xdot = v;
-vdot = param.g * e3 ...
-    - f / m * R * e3 + param.x_delta / m;
+vdot = param.g * e3 - f / m * R * e3 + param.x_delta / m;
 Wdot = J \ (-hat(W) * J * W + M + param.R_delta);
 Rdot = R * hat(W);
 

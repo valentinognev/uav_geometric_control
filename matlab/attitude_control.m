@@ -49,13 +49,13 @@ function [M, eI_dot, eR, eW] = attitude_control( ...
 %    eR: (3x1 matrix) attitude error
 %    eW: (3x1 matrix) angular velocity error
 
-eR = 1 / 2 * vee(Rd' * R - R' * Rd);
-eW = W - R' * Rd * Wd;
+eR = 1 / 2 * vee(Rd' * R - R' * Rd);                    # (10)
+eW = W - R' * Rd * Wd;                                  # (11)
 
 kR = diag([k.R, k.R, k.y]);
 kW = diag([k.W, k.W, k.wy]);
 
-M = - kR * eR ...
+M = - kR * eR ...                                       # (16)
     - kW * eW ...
     - k.I * eI ...
     + hat(R' * Rd * Wd) * param.J * R' * Rd * Wd ...

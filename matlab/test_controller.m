@@ -1,26 +1,26 @@
-% 
+%
 % Copyright (c) 2020 Flight Dynamics and Control Lab
-% 
+%
 % Permission is hereby granted, free of charge, to any person obtaining a
-% copy of this software and associated documentation files (the 
-% "Software"), to deal in the Software without restriction, including 
-% without limitation the rights to use, copy, modify, merge, publish, 
+% copy of this software and associated documentation files (the
+% "Software"), to deal in the Software without restriction, including
+% without limitation the rights to use, copy, modify, merge, publish,
 % distribute, sublicense, and/or sell copies of the Software, and to permit
-% persons to whom the Software is furnished to do so, subject to the 
+% persons to whom the Software is furnished to do so, subject to the
 % following conditions:
-% 
+%
 % The above copyright notice and this permission notice shall be included
 %  in all copies or substantial portions of the Software.
-% 
+%
 % THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-% OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF 
-% MERCHANTABILITY,FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
-% IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY 
-% CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
-% TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
+% OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+% MERCHANTABILITY,FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+% IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+% CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+% TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 % SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 %%
-close all;
+function test_controller
 addpath('aux_functions');
 addpath('test_functions');
 
@@ -68,7 +68,7 @@ param.c3 = 2;
 %% Initial conditions
 x0 = [0, 0, 0]';
 v0 = [0, 0, 0]';
-R0 = expm(pi * hat([0, 0, 1]'));
+R0 = expm(pi/2 * hat([0, 0, 1]'));
 W0 = [0, 0, 0]';
 X0 = [x0; v0; W0; reshape(R0,9,1); zeros(6,1)];
 
@@ -90,11 +90,11 @@ eI = X(:, 22:24)';
 
 for i = 1:N
     R(:,:,i) = reshape(X(i,10:18), 3, 3);
-    
+
     des = command(t(i));
     [f(i), M(:,i), ~, ~, err, calc] = position_control(X(i,:)', des, ...
         k, param);
-    
+
     % Unpack errors
     e.x(:,i) = err.x;
     e.v(:,i) = err.v;
@@ -102,7 +102,7 @@ for i = 1:N
     e.W(:,i) = err.W;
     e.y(i) = err.y;
     e.Wy(i) = err.Wy;
-    
+
     % Unpack desired values
     d.x(:,i) = des.x;
     d.v(:,i) = des.v;
@@ -156,3 +156,82 @@ zlabel('$x_3$', 'interpreter', 'latex');
 set(gca, 'Box', 'on');
 grid on;
 set(gca, 'FontName', 'Times New Roman');
+
+disp ('')
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function Xdot = eom(t, X, k, param)
+
+e3 = [0, 0, 1]';
+m = param.m;
+J = param.J;
+
+[~, v, R, W, ~, ~] = split_to_states(X);
+
+desired = command(t);
+[f, M, ei_dot, eI_dot, ~, ~] = position_control(X, desired, k, param);
+
+xdot = v;
+vdot = param.g * e3 - f / m * R * e3 + param.x_delta / m;
+Wdot = J \ (-hat(W) * J * W + M + param.R_delta);
+Rdot = R * hat(W);
+
+Xdot=[xdot; vdot; Wdot; reshape(Rdot,9,1); ei_dot; eI_dot];
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function desired = command(t)
+
+
+A = 1;
+B = 1;
+C = 0.2;
+
+d = pi / 2 * 0;
+
+a = 2;
+b = 3;
+c = 2;
+alt = -1;
+
+t = linspace(0, 2*pi, 2*pi*100+1);
+x = A * sin(a * t + d);
+y = B * sin(b * t);
+z = alt + C * cos(2 * t);
+plot3(x, y, z);
+
+% desired = command_line(t);
+desired = command_lissajou(t);
+% desired = command_point(t);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function desired = command_lissajou(t)
+
+A = 1;
+B = 1;
+C = 0.2;
+
+d = pi / 2 * 0;
+
+a = 2;
+b = 3;
+c = 2;
+alt = -1;
+
+t = linspace(0, 2*pi, 2*pi*100+1);
+x = A * sin(a * t + d);
+y = B * sin(b * t);
+z = alt + C * cos(2 * t);
+plot3(x, y, z);
+
+desired.x = [A * sin(a * t + d), B * sin(b * t), alt + C * cos(c * t)]';
+desired.v = [A * a * cos(a * t + d), B * b * cos(b * t), C * c * -sin(c * t)]';
+desired.x_2dot = [A * a^2 * -sin(a * t + d), B * b^2 * -sin(b * t), C * c^2 * -cos(c * t)]';
+desired.x_3dot = [A * a^3 * -cos(a * t + d), B * b^3 * -cos(b * t), C * c^3 * sin(c * t)]';
+desired.x_4dot = [A * a^4 * sin(a * t + d), B * b^4 * sin(b * t), C * c^4 * cos(c * t)]';
+
+w = 2 * pi / 10;
+desired.b1 = [cos(w * t), sin(w * t), 0]';
+desired.b1_dot = w * [-sin(w * t), cos(w * t), 0]';
+desired.b1_2dot = w^2 * [-cos(w * t), -sin(w * t), 0]';
+
+
+
