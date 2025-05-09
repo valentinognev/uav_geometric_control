@@ -17,7 +17,7 @@ def run_brescianini():
     J3 = 0.04
     param = {
         'J': np.diag([J1, J2, J3]),
-        'm': 2,
+        'm': 0.5,
         'g': 9.81,
         'd': 0.169,
         'c_tf': 0.0135,
@@ -26,26 +26,29 @@ def run_brescianini():
         'theta_x': np.array([1, 0.8, -1]),
         'W_R': np.eye(3),
         'theta_R': np.array([0.1, 0.1, -0.1]),
-        'kp_xy': 24,
-        'kd_xy': 0.8,
-        'kp_z': 0.7,
-        'kd_z': 0.3
+        'kp_xy': 1,
+        'kd_xy': 1.4,
+        'kp_z': 1,
+        'kd_z': 1.4
     }
 
     # Controller gains for Brescianini
     # Position
-    kx = 24
-    kv = 14
+    kx = 1
+    kv = 1.4
     k = {
-        'x': np.diag([kx, kx, 12]),
-        'v': np.diag([kv, kv, 8])
+        'x': np.diag([kx, kx, 1]),
+        'v': np.diag([kv, kv, 1.4])
     }
 
     # Initial conditions
-    x0 = np.array([0, 0, 0])  # for line
+    x0 = np.array([0, 20, -40])  # for line
     # x0 = np.array([1, -1, 0])  # for circle
     v0 = np.array([0, 0, 0])
-    R0 = expm((np.pi - 0.01) * hat(np.array([0, 0, 1])))
+    # R0 = expm((np.pi - 0.01) * hat(np.array([0, 0, 1])))
+    R0 = np.array([[0, 1, 0],
+                   [-1, 0, 0],
+                   [0, 0, 1]])  # for line
     W0 = np.array([0, 0, 0])
     X0 = np.concatenate([x0, v0, W0, R0.flatten()])
 
@@ -214,7 +217,10 @@ def position_control(X, desired, k, param):
         'v': v - desired['v']
     }
 
-    A = -k['x'] @ error['x'] - k['v'] @ error['v'] - m*g*e3 + m*desired['x_2dot']
+    A = -k['x'] @ error['x'] \
+        - k['v'] @ error['v'] \
+        - m*g*e3 \
+        + m*desired['x_2dot']
 
     b3 = R @ e3
     f = -A @ b3
@@ -282,7 +288,7 @@ def fM_to_thr(f, M, param):
 
 def command(t):
     """Generate command signal."""
-    return command_line(t)
+    return command_point(t)
     # return command_circle(t)
 ########################################################################################################
 
@@ -423,6 +429,26 @@ def deriv_unit_vector(q, q_dot, q_ddot):
               + 3 * q / nq**5 * (q @ q_dot)**2)
 
     return u, u_dot, u_ddot
+########################################################################################################
+
+def command_point(t):
+    """Line command generator."""
+    height = 40
+
+    desired = {
+        'x': np.array([0, 20, -height]),
+        'v': np.array([0, 0, 0]),
+        'x_2dot': np.zeros(3),
+        'x_3dot': np.zeros(3),
+        'x_4dot': np.zeros(3),
+        'w': 0,
+        'w_dot': 0,
+        'yaw': -np.pi/2,
+        'b1': np.array([1, 0, 0]),
+        'b1_dot': np.array([0, 0, 0]),
+        'b1_2dot': np.array([0, 0, 0])
+    }
+    return desired
 ########################################################################################################
 
 def command_line(t):

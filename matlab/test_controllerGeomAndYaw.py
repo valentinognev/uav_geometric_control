@@ -31,7 +31,7 @@ def test_controllerAllinOne():
     # addpath('test_functions');
 
     ### Simulation parameters
-    t = np.arange(0, 10.01, 0.01)
+    t = np.arange(0, 20.01, 0.01)
     N = len(t)
 
     # Quadrotor
@@ -40,7 +40,7 @@ def test_controllerAllinOne():
     J3 = 0.04
     param = {
         'J': np.diag([J1, J2, J3]),
-        'm': 2,
+        'm': 0.5,
         'd': 0.169,
         'ctf': 0.0135,
         'x_delta': np.array([0.5, 0.8, -1]),
@@ -50,11 +50,11 @@ def test_controllerAllinOne():
 
     ### Controller gains
     k = {
-        'x': 10,
-        'v': 8,
-        'i': 10,
+        'x': np.diag(np.array([1, 1, 1])),
+        'v': .8,
+        'i': .05,
         'c1': 1.5,
-        'sigma': 10,
+        'sigma': 1,
         'R': 1.5,
         'W': 0.35,
         'I': 10,
@@ -66,9 +66,9 @@ def test_controllerAllinOne():
     }
 
     ### Initial conditions
-    x0 = np.array([0, 0, -10])
+    x0 = np.array([0, 20, -40])
     v0 = np.zeros(3)
-    R0 = expm(hat(np.array([1, 0, 0])) * np.pi/2)
+    # R0 = expm(hat(np.array([0, 0, 0])) * np.pi/2)
     R0= np.array([[0, -1, 0],
                   [1, 0, 0],
                   [0, 0, 1]])
@@ -220,7 +220,7 @@ def position_control(X, desired, k, param):
     error_ = {}
     error_['x'] = x - desired['x']                                                # (11)
     error_['v'] = v - desired['v']                                                # (12)
-    A = - k['x'] * error_['x'] \
+    A = - k['x'] @ error_['x'] \
         - k['v'] * error_['v'] \
         - m * g * e3 \
         + m * desired['x_2dot'] \
@@ -233,7 +233,7 @@ def position_control(X, desired, k, param):
         - f / m * b3 \
         - desired['x_2dot'] \
         + param['x_delta'] / m
-    A_dot = - k['x'] * error_['v'] \
+    A_dot = - k['x'] @ error_['v'] \
         - k['v'] * ea \
         + m * desired['x_3dot'] \
         - k['i'] * satdot(sigma, ei, ei_dot)                                           # (14)
@@ -242,7 +242,7 @@ def position_control(X, desired, k, param):
     b3_dot = R @ hat(W) @ e3                                                     # (22)
     f_dot = -np.dot(A_dot, b3) - np.dot(A, b3_dot)
     eb = - f_dot / m * b3 - f / m * b3_dot - desired['x_3dot']                   # (27)
-    A_ddot = - k['x'] * ea \
+    A_ddot = - k['x'] @ ea \
         - k['v'] * eb \
         + m * desired['x_4dot'] \
         - k['i'] * satdot(sigma, ei, ei_ddot)
@@ -610,7 +610,7 @@ def command_point(t):
     }
 
     w = 2 * np.pi / 10
-    desired['b1'] = np.array([0,-1,0])
+    desired['b1'] = np.array([1,0,0])
     desired['b1_dot'] = np.array([0,0,0])
     desired['b1_2dot'] = np.array([0,0,0])
 

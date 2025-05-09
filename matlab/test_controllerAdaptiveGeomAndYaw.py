@@ -19,7 +19,7 @@ def adaptiveGeometricController():
     # param.use_disturbances = True;
 
     # Uncomment to remove disturbances.
-    param['use_disturbances'] = False
+    param['use_disturbances'] = True
     
     # Simulation parameters
     t = np.arange(0, 10.01, 0.01)
@@ -114,28 +114,28 @@ def adaptiveGeometricController():
         R[:,:,i] = X[i,9:18].reshape(3,3)
         
         des = command(t[i])
-        f[i], M[:,i], _, _, err, calc = position_control(X[i,:].reshape(-1,1), des, k, param)
-        
+        f[i], M_, _, _, err, calc = position_control(X[i,:].reshape(-1,1), des, k, param)
         # Unpack errors
-        e['x'][:,i] = err['x']
-        e['v'][:,i] = err['v']
-        e['R'][:,i] = err['R']
-        e['W'][:,i] = err['W']
+        e['x'][:,i] = err['x'].flatten()
+        e['v'][:,i] = err['v'].flatten()
+        e['R'][:,i] = err['R'].flatten()
+        e['W'][:,i] = err['W'].flatten()
         
         if param['use_decoupled_controller']:
             e['y'][i] = err['y']
             e['Wy'][i] = err['Wy']
         
-        f[i], M[:,i] = saturate_fM(f[i], M[:,i], param)
-        thr[:,i] = fM_to_thr(f[i], M[:,i], param)
+        f[i], M_ = saturate_fM(f[i], M_, param)
+        thr[:,i] = fM_to_thr(f[i], M_, param)
+        M[:,i] = M_.flatten()
         
         # Unpack desired values
-        d['x'][:,i] = des['x']
-        d['v'][:,i] = des['v']
-        d['b1'][:,i] = des['b1']
+        d['x'][:,i] = des['x'].flatten()
+        d['v'][:,i] = des['v'].flatten()
+        d['b1'][:,i] = des['b1'].flatten()
         d['R'][:,:,i] = calc['R']
-        b1[:,i] = R[:,:,i] @ np.array([1, 0, 0]).reshape(-1,1)
-        b1c[:,i] = calc['b1']
+        b1[:,i] = R[:,:,i] @ np.array([1, 0, 0]).reshape(-1,1).flatten()
+        b1c[:,i] = calc['b1'].flatten()
         
         norm_ex = np.linalg.norm(err['x'])
         norm_eR = np.linalg.norm(err['R'])
@@ -256,12 +256,12 @@ def attitude_control(R, W, bar_theta_R, b3d, b3d_dot, b3d_ddot, b1c, wc3, wc3_do
     wd_dot = hat(b3d) @ b3d_ddot
 
     eb = hat(b3d) @ b3                                                 # (27)
-    ew = w + hat(b3)**2 @ wd                                           # (28)
+    ew = w + hat(b3)@hat(b3) @ wd                                           # (28)
                                                     # (31)
     tau = - kb * eb \
               - kw * ew \
               - J[0,0] * (b3.T @ wd) * b3_dot \
-              - J[0,0] * hat(b3)**2 @ wd_dot \
+              - J[0,0] * hat(b3)@hat(b3) @ wd_dot \
               - W_R_1 @ bar_theta_R * b1 - W_R_2 @ bar_theta_R * b2
 
     tau1 = b1.T @ tau
@@ -282,12 +282,12 @@ def attitude_control(R, W, bar_theta_R, b3d, b3d_dot, b3d_ddot, b1c, wc3, wc3_do
     
     """Attitude adaptive term"""
     ew_c2eb = ew + c2 * eb
-    dot_theta_R = gamma_R * W_R_1.T @ (ew_c2eb.T @ b1) \
-                    + gamma_R * W_R_2.T @ (ew_c2eb.T @ b2) \
-                    + gamma_R * W_R_3.T @ (ewy + c3 * ey)
+    dot_theta_R = gamma_R * W_R_1.T * (ew_c2eb.T @ b1) \
+                    + gamma_R * W_R_2.T * (ew_c2eb.T @ b2) \
+                    + gamma_R * W_R_3.T * (ewy + c3 * ey)
 
     M = np.vstack([M1, M2, M3])
-    return M, dot_theta_R, eb, ew, ey, ewy
+    return M, dot_theta_R.T, eb, ew, ey, ewy
 
 def position_control(X, desired, k, param):
     x, v, R, W, bar_theta_x, bar_theta_R = split_to_states(X)
@@ -386,7 +386,7 @@ def position_control(X, desired, k, param):
     Rc_ddot = np.hstack([b1c_ddot, b2c_ddot, b3c_ddot])
     
     Wc = vee(Rc.T @ Rc_dot)
-    Wc_dot = vee(Rc.T @ Rc_ddot - hat(Wc)**2)
+    Wc_dot = vee(Rc.T @ Rc_ddot - hat(Wc)@hat(Wc))
     
     W3 = (R @ e3).T @ (Rc @ Wc)
     W3_dot = (R @ e3).T @ (Rc @ Wc_dot) \
@@ -425,8 +425,8 @@ def command(t):
     # desired = command_line(t)
     return command_circle(t)
 
-def eom(t, X, k, param):
-    X = X.reshape(-1,1)
+def eom(X, t, k, param):
+
     e3 = np.array([0, 0, 1]).reshape(-1,1)
     m = param['m']
     J = param['J']
@@ -437,8 +437,7 @@ def eom(t, X, k, param):
     x, v, R, W, _, _ = split_to_states(X)
 
     desired = command(t)
-    f, M, bar_theta_x_dot, bar_theta_R_dot, _, _ = position_control(X, 
-                                                                desired, k, param)
+    f, M, bar_theta_x_dot, bar_theta_R_dot, _, _ = position_control(X, desired, k, param)
 
     f, M = saturate_fM(f, M, param)
 
@@ -566,11 +565,12 @@ def generate_output_arrays(N):
     error['v'] = np.zeros((3, N))
     error['R'] = np.zeros((3, N))
     error['W'] = np.zeros((3, N))
-    error['y'] = np.zeros((1, N))
-    error['Wy'] = np.zeros((1, N))
+    error['y'] = np.zeros(N)
+    error['Wy'] = np.zeros(N)
 
     desired = {}
     desired['x'] = np.zeros((3, N))
+    desired['v'] = np.zeros((3, N))
     desired['b1'] = np.zeros((3, N))
     desired['R'] = np.zeros((3, 3, N))
 
@@ -595,7 +595,6 @@ def plot_3x1(x, y, title_, xlabel_, ylabel_, linetype, linewidth, font_size=10):
         plt.subplot(3, 1, i+1)
         plt.plot(x, y[i,:], linetype, linewidth=linewidth)  
         # set(gca, 'FontName', 'Times New Roman', 'FontSize', font_size);
-        plt.hold(True)
     
     plt.xlabel(xlabel_)
     plt.title(title_)
@@ -608,7 +607,7 @@ def plot_4x1(x, y, title_, xlabel_, ylabel_, linetype, linewidth, font_size=10):
         plt.subplot(4, 1, i+1)
         plt.plot(x, y[i,:], linetype, linewidth=linewidth)  
         # set(gca, 'FontName', 'Times New Roman', 'FontSize', font_size);
-        plt.hold(True)
+
     
     plt.xlabel(xlabel_)
     plt.title(title_)

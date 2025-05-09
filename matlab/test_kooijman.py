@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 class Param:
     def __init__(self):
-        self.m = 2
+        self.m = 0.5
         self.g = 9.81 
         self.mass = 2
         self.gravity = 9.81
@@ -37,12 +37,15 @@ def run_kooijman():
     param = Param()
 
     # Initial conditions
-    x0 = np.array([0, 0, 0])
+    x0 = np.array([0, 20, -40])
     v0 = np.array([0, 0, 0])
     W0 = np.array([0, 0, 0])
 
     e3 = np.array([0, 0, 1])
-    R0 = expm((np.pi - 0.01) * hat(e3))
+    # R0 = expm((np.pi - 0.01) * hat(e3))
+    R0 = np.array([[0, 1, 0],
+                   [-1, 0, 0],
+                   [0, 0, 1]])
 
     X0 = np.concatenate([x0, v0, R0.flatten(), W0])
 
@@ -87,13 +90,13 @@ def run_kooijman():
         d['v'][:,i] = desired['v']
         
         # Find normalized errors
-        norm_ex = norm(err['x'])
-        norm_eR = norm(err['R'])
+        norm_ex = np.linalg.norm(err['x'])
+        norm_eR = np.linalg.norm(err['R'])
         
         avg_ex += norm_ex
         avg_eR += norm_eR
         
-        norm_f = norm(thr[:,i])
+        norm_f = np.linalg.norm(thr[:,i])
         avg_f += norm_f
         
         if norm_ex < converge_ex:
@@ -133,8 +136,8 @@ def eom_kooijman(X, t, param):
     x, v, R, W = split_to_states(X)
 
     desired = command(t)
-    T_, tau_, error_, calculated_ = position_control_kooijman(X, desired, param)
-    # T, tau, error, calculated = position_control_kooijman_original(X, desired, param)
+    # T_, tau_, error_, calculated_ = position_control_kooijman(X, desired, param)
+    T, tau, error, calculated = position_control_kooijman_original(X, desired, param)
 
     thr = fM_to_thr(T, tau, param)
     T, tau = saturate_fM(T, tau, param)
@@ -196,16 +199,17 @@ def position_control_kooijman_original(X, desired, param):
 
     b = -desired['x_2dot'] + g*e3
 
-    T_bar = m*norm(b)
+    T_bar = m*np.linalg.norm(b)
     T_msqrt3 = T_bar / (np.sqrt(3)*m)
     L_lower = np.array([-T_msqrt3, -T_msqrt3, g - T_msqrt3])
     L_upper = np.array([T_msqrt3, T_msqrt3, g + T_msqrt3])
 
     u_bar = desired['x_2dot']
+    # u = saturate_u(u_bar + kp*error.x + kv*error.v, L_lower, L_upper);
     u = u_bar + kp*error['x'] + kv*error['v']
 
     a_bar_ref = g*e3 - u
-    n_a_bar_ref = norm(a_bar_ref)
+    n_a_bar_ref = np.linalg.norm(a_bar_ref)
 
     T = m*n_a_bar_ref
     u_bar_dot = desired['x_3dot']
@@ -412,7 +416,7 @@ def getCommand(currentBodyState, desiredBodyState, pos_control=True, vel_control
 
     b = -xd_2dot + param.gravity*e3
 
-    T_bar = mass*norm(b)
+    T_bar = mass*np.linalg.norm(b)
     T_msqrt3 = T_bar / (np.sqrt(3)*mass)
     L_lower = np.array([-T_msqrt3, -T_msqrt3, param.gravity - T_msqrt3])
     L_upper = np.array([T_msqrt3, T_msqrt3, param.gravity + T_msqrt3])
@@ -421,7 +425,7 @@ def getCommand(currentBodyState, desiredBodyState, pos_control=True, vel_control
     u = u_bar + kX@eX + kV@eV
 
     a_bar_ref = param.gravity*e3 - u
-    n_a_bar_ref = norm(a_bar_ref)
+    n_a_bar_ref = np.linalg.norm(a_bar_ref)
 
     T = mass*n_a_bar_ref
     u_bar_dot = xd_3dot
@@ -592,7 +596,7 @@ def getCommand(currentBodyState, desiredBodyState, pos_control=True, vel_control
 
 
 def command(t):
-    return command_line(t)
+    return command_point(t)
 
 def calculate_u_v_dot(v, v_dot, v_bar, v_bar_dot, v_bar_2dot, r1_dot, param):
     k1 = param.k1#['k1']
@@ -779,13 +783,13 @@ def get_Re_dot(v, v_dot, v_bar, v_bar_dot):
     num = hat(v_bar)@v
     num_dot = hat(v_bar_dot)@v + hat(v_bar)@v_dot
     Rrd1 = diff_num_den(num, num_dot, den, den_dot)
-    if norm(den) < 1e-3:
+    if np.linalg.norm(den) < 1e-3:
         Rrd1 *= 0
 
     num = -(np.eye(3) - v_bar[:,None]@v_bar[None,:])@v
     num_dot = (v_bar_dot[:,None]@v_bar[None,:] + v_bar[:,None]@v_bar_dot[None,:])@v - (np.eye(3) - v_bar[:,None]@v_bar[None,:])@v_dot
     Rrd2 = diff_num_den(num, num_dot, den, den_dot)
-    if norm(den) < 1e-3:
+    if np.linalg.norm(den) < 1e-3:
         Rrd2 *= 0
 
     Rrd3 = v_bar_dot
@@ -853,13 +857,13 @@ def get_Rr_dot(v, v_dot, v_bar, v_bar_dot):
     num = hat(v_bar)@v
     num_dot = hat(v_bar_dot)@v + hat(v_bar)@v_dot
     Rrd1 = diff_num_den(num, num_dot, den, den_dot)
-    if norm(den) < 1e-3:
+    if np.linalg.norm(den) < 1e-3:
         Rrd1 *= 0
 
     num = (np.eye(3) - v[:,None]@v[None,:])@v_bar
     num_dot = -(v_dot[:,None]@v[None,:] + v[:,None]@v_dot[None,:])@v_bar + (np.eye(3) - v[:,None]@v[None,:])@v_bar_dot
     Rrd2 = diff_num_den(num, num_dot, den, den_dot)
-    if norm(den) < 1e-3:
+    if np.linalg.norm(den) < 1e-3:
         Rrd2 *= 0
 
     Rrd3 = v_dot
@@ -960,8 +964,26 @@ def command_line(t):
     }
     return desired
 
+def command_point(t):
+    height = 40
+
+    desired = {
+        'x': np.array([0, 20, -height]),
+        'v': np.array([0, 0, 0]),
+        'x_2dot': np.array([0, 0, 0]),
+        'x_3dot': np.array([0, 0, 0]),
+        'x_4dot': np.array([0, 0, 0]),
+        'w': 0,
+        'w_dot': 0,
+        'yaw': -np.pi/2,
+        'b1': np.array([1, 0, 0]),
+        'b1_dot': np.array([0, 0, 0]),
+        'b1_2dot': np.array([0, 0, 0])
+    }
+    return desired
+
 def deriv_unit_vector(q, q_dot, q_ddot):
-    nq = norm(q)
+    nq = np.linalg.norm(q)
     u = q / nq
     u_dot = q_dot / nq - q * (q.T@q_dot) / nq**3
 
