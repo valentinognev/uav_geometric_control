@@ -311,9 +311,9 @@ def attitude_control_brescianini(R, w, Rd, wd, wd_dot, param):
     qe = qe.conjugate
     q0, q1, q2, q3 = qe.elements
 
-    q0q3 = np.sqrt(q0**2 + q3**2)
+    q0q3 = np.sqrt(q0*q0 + q3*q3)
     B = np.array([
-        q0**2 + q3**2,
+        q0*q0 + q3*q3,
         q0*q1 - q2*q3,
         q0*q2 + q1*q3,
         0
