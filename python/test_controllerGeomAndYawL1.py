@@ -85,9 +85,8 @@ def test_controllerAllinOne():
         'c3': 2,
         'Asv': -5,         # As for the velocity state
         'Asomega':-10,     # As for the rotational velocity state
-        'ctoffq1Thrust': 10, # LPF1's cutoff frequency for thrust in the L1 adaptive controller (rad/s)
-        'ctoffq1Moment': 10, # LPF1's cutoff frequency for moment in the L1 adaptive controller (rad/s)
-        'ctoffq2Moment': 2, # LPF2's cutoff frequency for moment in the L1 adaptive controller (rad/s)
+        'ctoffqThrust': 10, # LPF1's cutoff frequency for thrust in the L1 adaptive controller (rad/s)
+        'ctoffqMoment': 2, # LPF2's cutoff frequency for moment in the L1 adaptive controller (rad/s)
     }
 
     ### Initial conditions
@@ -517,11 +516,11 @@ def L1AdaptiveAugmentation(thrustMomentCmd, t, cur_velocity_ned, cur_omega, k, p
 
     # NOTE: per the definition in vector3.h, vector * scalar must have vector first then multiply the scalar later
     v_hat = (prevState.v_hat + 
-            (e3 * param['g'] - 
-                prevState.R[:, 2] * (prevState.u_b[0] + prevState.u_ad[0] + prevState.sigma_m_hat[0]) * massInverse + 
-                prevState.R[:, 0] * prevState.sigma_um_hat[0] * massInverse + 
-                prevState.R[:, 1] * prevState.sigma_um_hat[1] * massInverse + 
-                vpred_error_prev * As_v) * dt)
+            (e3 * param['g'] \
+                 + prevState.R[:, 0] * prevState.sigma_um_hat[0] * massInverse \
+                 + prevState.R[:, 1] * prevState.sigma_um_hat[1] * massInverse \
+                 - prevState.R[:, 2] * (prevState.u_b[0] + prevState.u_ad[0] + prevState.sigma_m_hat[0]) * massInverse  \
+                 + vpred_error_prev * As_v) * dt)
 
     # temp vector: thrustMomentCmd[1--3] + prevState.u_ad[1--3] + sigma_m_hat[1--3]
     tempVec = prevState.u_b[1:4] + prevState.u_ad[1:4] + prevState.sigma_m_hat[1:4]
@@ -563,33 +562,19 @@ def L1AdaptiveAugmentation(thrustMomentCmd, t, cur_velocity_ned, cur_omega, k, p
     sigma_um_hat[0] = -np.dot(R[:, 0], PhiInvmu_v) * param['m']
     sigma_um_hat[1] = -np.dot(R[:, 1], PhiInvmu_v) * param['m']
 
-    # store uncertainty estimations
-    prevState.sigma_m_hat = deepcopy(sigma_m_hat)
-    prevState.sigma_um_hat = deepcopy(sigma_um_hat)
-
-    # compute lpf1 coefficients
-    lpf1_coefficientThrust1 = exp(-k['ctoffq1Thrust'] * 0.0025)
-    lpf1_coefficientThrust2 = 1.0 - lpf1_coefficientThrust1
-
-    lpf1_coefficientMoment1 = exp(-k['ctoffq1Moment'] * 0.0025)
-    lpf1_coefficientMoment2 = 1.0 - lpf1_coefficientMoment1
-
     # update the adaptive control
-    u_ad_int = np.zeros(4)
-    u_ad = np.zeros(4)
 
     # low-pass filter 1 (negation is added to prevState.u_ad to filter the correct signal)
-    u_ad_int = lpf1_coefficientThrust1 * prevState.lpf1 + lpf1_coefficientThrust2 * sigma_m_hat
-
+    lpf_coefficientThrust = exp(-k['ctoffqThrust'] * 0.0025)    # compute lpf1 coefficient
+    u_ad_int = lpf_coefficientThrust * prevState.lpf1 + (1.0 - lpf_coefficientThrust) * sigma_m_hat
     prevState.lpf1 = deepcopy(u_ad_int)  # store the current state
 
-    lpf2_coefficientMoment1 = exp(-k['ctoffq2Moment'] * 0.0025)
-    lpf2_coefficientMoment2 = 1.0 - lpf2_coefficientMoment1
-
     # low-pass filter 2 (optional)
+    u_ad = np.zeros(4)
     u_ad[0] = u_ad_int[0]  # only one filter on the thrust channel
-    u_ad[1:4] = lpf2_coefficientMoment1 * prevState.lpf2[1:4] + lpf2_coefficientMoment2 * u_ad_int[1:4]
-
+    
+    lpf_coefficientMoment = exp(-k['ctoffqMoment'] * 0.0025)    # compute lpf2 coefficient
+    u_ad[1:4] = lpf_coefficientMoment * prevState.lpf2[1:4] + (1.0 - lpf_coefficientMoment) * u_ad_int[1:4]
     prevState.lpf2 = deepcopy(u_ad)  # store the current state
     # negate
     # u_ad = -u_ad
@@ -597,15 +582,18 @@ def L1AdaptiveAugmentation(thrustMomentCmd, t, cur_velocity_ned, cur_omega, k, p
     # store the values for next iteration
     prevState.u_ad = deepcopy(u_ad)
 
+    # store uncertainty estimations
+    prevState.sigma_m_hat = deepcopy(sigma_m_hat)
+    prevState.sigma_um_hat = deepcopy(sigma_um_hat)
     prevState.v = deepcopy(v_now)
     prevState.omega = deepcopy(omega_now)
     prevState.R = deepcopy(R)
     prevState.u_b = deepcopy(thrustMomentCmd)
     prevState.t = deepcopy(t)
-    if np.isnan(prevState.u_ad[0]) or np.isnan(prevState.u_ad[1]) or np.isnan(prevState.u_ad[2]) or np.isnan(prevState.u_ad[3]):
+    if np.isnan(u_ad[0]) or np.isnan(u_ad[1]) or np.isnan(u_ad[2]) or np.isnan(u_ad[3]):
         print('nan')
 
-    return deepcopy(prevState.u_ad)  # return the updated l1 control
+    return deepcopy(u_ad)  # return the updated l1 control
 
 
 

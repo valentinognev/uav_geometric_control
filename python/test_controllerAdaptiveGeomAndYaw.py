@@ -7,7 +7,7 @@ def adaptiveGeometricController():
     # Simulation mode
     # Uncomment to use geometric adaptive decoupled-yaw controller.
     param = {}
-    param['use_decoupled_controller'] = True
+    param['use_decoupled_controller'] = False
 
     # Uncomment to use geometric adaptive coupled-yaw controller in
     # Geometric adaptive tracking control of a quadrotor unmanned aerial 
@@ -37,29 +37,37 @@ def adaptiveGeometricController():
     param['c_tf'] = 0.0135
 
     # Fixed disturbance
+    # Controller gains
+    k = {}
     if param['use_disturbances']:
         param['W_x'] = np.eye(3)
         param['theta_x'] = np.array([1, 0.8, -1]).reshape(-1,1)
 
         param['W_R'] = np.eye(3)
         param['theta_R'] = np.array([0.1, 0.1, -0.1]).reshape(-1,1)
+
+        k['x'] = 15
+        k['v'] = 9
+        k['R'] = 4.1
+        k['W'] = 2.9
+        k['y'] = 0.8
+        k['wy'] = 0.2    
     else:
         param['W_x'] = np.zeros((3,3))
         param['theta_x'] = np.zeros((3,1))
 
         param['W_R'] = np.eye(3)
         param['theta_R'] = np.zeros((3,1))
-    
-    # Controller gains
-    k = {}
-    k['x'] = 12
-    k['v'] = 8
-    k['R'] = 6
-    k['W'] = 2
-    k['y'] = 2
-    k['wy'] = 0.8
-    param['gamma_x'] = 2
-    param['gamma_R'] = 10
+        
+        k['x'] = 11
+        k['v'] = 9
+        k['R'] = 6
+        k['W'] = 2
+        k['y'] = 2
+        k['wy'] = 0.8
+
+    param['gamma_x'] = 1.25
+    param['gamma_R'] = 0.45
     param['B_theta_x'] = 10
     
     param['c1'] = min(np.sqrt(k['x'] / param['m']), 4 * k['x'] * k['v'] / (k['v']**2 + 4 * param['m'] * k['x']))
@@ -594,7 +602,7 @@ def plot_3x1(x, y, title_, xlabel_, ylabel_, linetype, linewidth, font_size=10):
     for i in range(3):
         plt.subplot(3, 1, i+1)
         plt.plot(x, y[i,:], linetype, linewidth=linewidth)  
-        # set(gca, 'FontName', 'Times New Roman', 'FontSize', font_size);
+        plt.grid(True)
     
     plt.xlabel(xlabel_)
     plt.title(title_)
@@ -606,8 +614,7 @@ def plot_4x1(x, y, title_, xlabel_, ylabel_, linetype, linewidth, font_size=10):
     for i in range(4):
         plt.subplot(4, 1, i+1)
         plt.plot(x, y[i,:], linetype, linewidth=linewidth)  
-        # set(gca, 'FontName', 'Times New Roman', 'FontSize', font_size);
-
+        plt.grid(True)
     
     plt.xlabel(xlabel_)
     plt.title(title_)

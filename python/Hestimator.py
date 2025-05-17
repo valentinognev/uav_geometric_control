@@ -78,7 +78,7 @@ class ConstantAccelerationKalmanFilter:
         pos = x[0]
         vel = x[1]
         acc = x[2]
-        return self.x, (pos, vel, acc)
+        return x, (pos, vel, acc)
 ###############################################################################################################
 def parse_mavlink_log_line(log_file_path):
     # Open connection to log file
@@ -164,7 +164,8 @@ def pressure_to_altitudeJacob(P, T, P0=101325):
 
 if __name__ == '__main__':
     
-    log_file_path = '/home/valentin/Projects/GambitonBiut/Jacob/records/15-15-10/mavlink.txt'
+    # log_file_path = '/home/valentin/Projects/GambitonBiut/Jacob/records/15-15-10/mavlink.txt'
+    log_file_path = '/home/valentin/Projects/GambitonBiut/Refs/geometricControl/logs/mavlink3.txt'
     parsed_data = parse_mavlink_log_line(log_file_path)
     # Simulate noisy 3D position measurements with variable time steps and measurement noise
     
@@ -173,10 +174,17 @@ if __name__ == '__main__':
     baroData_['time'] = np.array(parsed_data['SCALED_PRESSURE']['time_boot_ms'])/1e3; startTime = baroData_['time'][0]; baroData_['time'] -= startTime
     baroData_['pressure'] = np.array(parsed_data['SCALED_PRESSURE']['press_abs'])*100
     baroData_['temperature'] = np.array(parsed_data['SCALED_PRESSURE']['temperature'])   
+    baroData_['time'] = baroData_['time'][1::10]
+    baroData_['pressure'] = baroData_['pressure'][1::10]
+    baroData_['temperature'] = baroData_['temperature'][1::10]
+    parsed_data = parse_mavlink_log_line(log_file_path)
+    # Simulate noisy 3D position measurements with variable time steps and measurement noise
     baroData.append(baroData_)
     
     baroData_['time'] = np.array(parsed_data['SCALED_PRESSURE2']['time_boot_ms'])/1e3;    baroData_['time'] -= startTime
     baroData_['pressure'] = np.array(parsed_data['SCALED_PRESSURE2']['press_abs'])*100
+    baroData_['time'] = baroData_['time'][1::10]
+    baroData_['pressure'] = baroData_['pressure'][1::10]
     baroData.append(baroData_)    
 
     imu = [];           imu_ = {}
@@ -243,10 +251,11 @@ if __name__ == '__main__':
     # plt.show()
     # i=1         
     
-    cakf = ConstantAccelerationKalmanFilter(process_var=1.0, initial_measurement_var=[1.1,1.2], initial_time=0)
+    cakf = ConstantAccelerationKalmanFilter(process_var=1.0, initial_measurement_var=[1.1,4], initial_time=0)
 
     true_position = pos['alt']
-    estimated_position = np.zeros(len(pos['alt']))
+    est_time = np.linspace(0, baroData[0]['time'][-1], 10000)
+    est_position = np.zeros(len(est_time))
 
     positionsca = []; positionscv = []
     velocitiesca = []; velocitiescv = []
@@ -257,51 +266,58 @@ if __name__ == '__main__':
     
     baroInd = 0
     imuInd = 0
-    trueInd = 0
+    estInd = 0
     
-    while not (trueInd==len(pos['time']) or imuInd==len(imu[0]['time']) or baroInd==len(baroData[0]['time'])):
+    while not (imuInd==len(imu[0]['time']) or baroInd==len(baroData[0]['time'])):
         curBaroTime = baroData[0]['time'][baroInd]
         curImuTime = imu[0]['time'][imuInd]
-        curTrueTime = pos['time'][trueInd]
+        curEstTime = est_time[estInd]
         
-        if curBaroTime <= curImuTime and curBaroTime <= curTrueTime:
+        if curBaroTime <= curImuTime and curBaroTime <= curEstTime:
             measurement = baroData[0]['heightFunc'][baroInd] 
             cakf.updateWithPosition(pos=measurement, time_=curBaroTime, measurement_var=1)
             baroInd += 1
-        elif curImuTime < curBaroTime and curImuTime <= curTrueTime:
+        elif curImuTime < curBaroTime and curImuTime <= curEstTime:
             measurement = imu[0]['zacc'][imuInd] 
             cakf.updateWithAcceleration(acc=measurement, time_=curImuTime, measurement_var=1)
             imuInd += 1
-        elif curTrueTime < curBaroTime and curTrueTime < curImuTime:
-            estimated_position[trueInd] = cakf.get_state(time_=curTrueTime)[1][0]
-            trueInd += 1
+        elif curEstTime < curBaroTime and curEstTime < curImuTime:
+            est_position[estInd] = cakf.get_state(time_=curEstTime)[1][0]
+            estInd += 1
                
-            cakfState,_ = cakf.get_state(dt=0)
+            if curEstTime>5:
+                pass
+            cakfState,_ = cakf.get_state(time_=curEstTime)
             # Extract position, velocity, and acceleration from the state
             posca, velca, accca = cakfState[0], cakfState[1], cakfState[2]
             positionsca.append(posca)
             velocitiesca.append(velca)
             accelerationsca.append(accca)
 
+    while len(positionsca) < len(est_time):
+        positionsca.append(positionsca[-1]);    velocitiesca.append(velocitiesca[-1]);    accelerationsca.append(accelerationsca[-1])
     positionsca = np.array(positionsca); velocitiesca = np.array(velocitiesca); accelerationsca = np.array(accelerationsca)
+
     # Plot results
     dim_labels = ['X', 'Y', 'Z']
 
+    # synchronize the time between two
     plt.figure(10)
     plt.subplot(2,1,1)
-    plt.plot(time_steps, positionsca, label='Estimated Position', linestyle='-')
+    plt.plot(est_time, positionsca, '.', label='Estimated Position', linestyle='-')
     plt.scatter(baroData[0]['time'], baroData[0]['heightFunc'], label='Measurements', color='red', s=10)
     plt.plot(pos['time'], pos['alt'], label='True Position', linestyle='solid')
     plt.xlabel("Time")
     plt.ylabel("Position")
+    plt.grid(True)
     plt.legend()
     
-    plt.subplot(2,1,2)
-    plt.plot(time_steps, accelerationsca, label='Estimated Acceleration', linestyle='-')
+    plt.subplot(2,1,2, sharex=plt.gca())
+    plt.plot(est_time, accelerationsca, '.', label='Estimated Acceleration', linestyle='-')
     plt.scatter(imu[0]['time'], imu[0]['zacc'], label='Measurements', color='red', s=10)
     plt.xlabel("Time")
     plt.ylabel("Acceleration")
     plt.legend()
-    
+    plt.grid(True)
     plt.show()
     i=1

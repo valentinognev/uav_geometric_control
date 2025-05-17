@@ -1,10 +1,10 @@
 function adaptiveGeometricController
 %% Simulation mode
 % Uncomment to use geometric adaptive decoupled-yaw controller.
-param.use_decoupled_controller = true;
+param.use_decoupled_controller = false;
 
 % Uncomment to use geometric adaptive coupled-yaw controller in
-% Geometric adaptive tracking control of a quadrotor unmanned aerial 
+% Geometric adaptive tracking control of a quadrotor unmanned aerial
 % vehicle on {SE(3)}, F. Goodarzi, D. Lee, and T. Lee.
 % param.use_decoupled_controller = false;
 %% Disturbances
@@ -12,7 +12,7 @@ param.use_decoupled_controller = true;
 param.use_disturbances = true;
 
 % Uncomment to remove disturbances.
-% param.use_disturbances = false;
+param.use_disturbances = false;
 %% Simulation parameters
 t = 0:0.01:10;
 N = length(t);
@@ -102,25 +102,25 @@ converge_ex = 0.02;
 
 for i = 1:N
     R(:,:,i) = reshape(X(i,10:18), 3, 3);
-    
+
     des = command(t(i));
     [f(i), M(:,i), ~, ~, err, calc] = position_control(X(i,:)', des, ...
         k, param);
-    
+
     % Unpack errors
     e.x(:,i) = err.x;
     e.v(:,i) = err.v;
     e.R(:,i) = err.R;
     e.W(:,i) = err.W;
-    
+
     if param.use_decoupled_controller
         e.y(i) = err.y;
         e.Wy(i) = err.Wy;
     end
-    
+
     [f(i), M(:,i)] = saturate_fM(f(i), M(:,i), param);
     thr(:,i) = fM_to_thr(f(i), M(:,i), param);
-    
+
     % Unpack desired values
     d.x(:,i) = des.x;
     d.v(:,i) = des.v;
@@ -128,17 +128,17 @@ for i = 1:N
     d.R(:,:,i) = calc.R;
     b1(:,i) = R(:,:,i) * [1, 0, 0]';
     b1c(:,i) = calc.b1;
-    
+
     norm_ex = norm(err.x);
     norm_eR = norm(err.R);
-    
+
     % Find normalized errors
     avg_ex = avg_ex + norm_ex;
     avg_eR = avg_eR + norm_eR;
-    
+
     norm_f = norm(thr(:,i));
     avg_f = avg_f + norm_f;
-    
+
     if norm_ex < converge_ex
         if ~is_converged
             converge_t = t(i);
@@ -337,7 +337,7 @@ ev_c1ex = error.v + c1 * error.x;
 norm_theta_x = norm(bar_theta_x);
 if norm_theta_x < param.B_theta_x || ...
     (norm_theta_x == param.B_theta_x && bar_theta_x' * W_x' * ev_c1ex <= 0)
-    
+
     bar_theta_x_dot = gamma_x * W_x' * ev_c1ex;
 else
     I_theta = eye(3) ...
@@ -360,13 +360,13 @@ A_dot = - k.x * error.v ...
 norm_theta_x = norm(bar_theta_x);
 if norm_theta_x < param.B_theta_x || ...
     (norm_theta_x == param.B_theta_x && bar_theta_x' * W_x' * ev_c1ex <= 0)
-    
+
     bar_theta_x_2dot = gamma_x * W_x_dot' * ev_c1ex ...
         + gamma_x * W_x' * (ev_dot + c1 * error.v);
 else
     I_theta = eye(3) ...
         - bar_theta_x * bar_theta_x' / (bar_theta_x' * bar_theta_x);
-    
+
     num = norm_theta_x * (bar_theta_x_dot * bar_theta_x' ...
         + bar_theta_x * bar_theta_x_dot') ...
         - 2 * (bar_theta_x * bar_theta_x') * bar_theta_x_dot;
@@ -420,7 +420,7 @@ if param.use_decoupled_controller
         R, W, bar_theta_R, ...
         b3c, b3c_dot, b3c_ddot, b1c, W3, W3_dot, ...
         k, param);
-    
+
     % For comparison with non-decoupled controller
     error.R = 1 / 2 * vee(Rc' * R - R' * Rc);
 else
@@ -576,7 +576,7 @@ end
 
 for i = 1:3
     subplot(3, 1, i);
-    plot(x, y(i,:), linetype, 'LineWidth', linewidth);  
+    plot(x, y(i,:), linetype, 'LineWidth', linewidth);
     % set(gca, 'FontName', 'Times New Roman', 'FontSize', font_size);
     hold on;
 end
@@ -600,13 +600,13 @@ for i = 1:3
     for j = 1:3
         k = 3*(i - 1) + j;
         subplot(3, 3, k)
-        
+
         if desired
             plot(x, squeeze(y(i,j,:)), linetype, ...
                 'LineWidth', linewidth, 'Color', [1, 0, 0]);
         else
             plot(x, squeeze(y(i,j,:)), linetype, 'LineWidth', linewidth);
-        end  
+        end
         % set(gca, 'FontName', 'Times New Roman', 'FontSize', font_size);
         ylim([-1 1]);
         hold on;
@@ -630,7 +630,7 @@ end
 
 for i = 1:4
     subplot(4, 1, i);
-    plot(x, y(i,:), linetype, 'LineWidth', linewidth);  
+    plot(x, y(i,:), linetype, 'LineWidth', linewidth);
     % set(gca, 'FontName', 'Times New Roman', 'FontSize', font_size);
     hold on;
 end
